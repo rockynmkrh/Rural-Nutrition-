@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Rural India Nutrition Explorer</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        font-family: "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(120deg, #a1c4fd, #c2e9fb);
+        min-height: 100vh;
+      }
+      .container {
+        max-width: 900px;
+        margin: 30px auto;
+        background: #fff;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+      }
+      h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        padding: 15px;
+        color: #fff;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      }
+      h2 {
+        text-align: center;
+        margin: 10px 0;
+        color: #333;
+      }
+      select {
+        width: 100%;
+        padding: 10px;
+        margin: 10px 0;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 16px;
+        transition: 0.2s ease;
+      }
+      select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 5px rgba(102, 126, 234, 0.5);
+        outline: none;
+      }
+      .card {
+        background: #ffffff;
+        padding: 20px;
+        border-radius: 10px;
+        margin-top: 20px;
+        border: 1px solid #eee;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+        transition: 0.3s ease;
+      }
+      .card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+      }
+      .pill {
+        display: inline-block;
+        background: #e0f7fa;
+        color: #006064;
+        padding: 6px 12px;
+        margin: 3px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      h3 {
+        margin: 15px 0 8px;
+        color: #333;
+      }
+      .loading {
+        text-align: center;
+        margin: 20px 0;
+        font-size: 18px;
+        color: #fff;
+      }
+      ul {
+        padding-left: 20px;
+      }
+      li {
+        margin-bottom: 5px;
+      }
+      canvas {
+        margin-top: 20px;
+      }
+      .policy-summary {
+        margin-top: 25px;
+        padding: 15px;
+        border-radius: 10px;
+        background: #f1f5ff;
+        border: 1px solid #d0d9ff;
+        text-align: center;
+        font-size: 16px;
+        font-weight: 500;
+        line-height: 1.9;
+      }
+      .slider-container {
+        margin-top: 25px;
+        text-align: center;
+        background: #f9f9f9;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #ddd;
+      }
+      .slider {
+        width: 80%;
+        margin: 10px auto;
+        display: block;
+      }
+      .slider-label {
+        font-size: 18px;
+        font-weight: bold;
+        color: #333;
+      }
+      .credits {
+        margin-top: 40px;
+        padding: 15px;
+        text-align: center;
+        background: #f9fafc;
+        border-top: 1px solid #ddd;
+        border-radius: 10px;
+        font-size: 15px;
+        color: #444;
+      }
+      .credits h3 {
+        margin-bottom: 10px;
+        color: #222;
+      }
+      .credits p {
+        margin: 4px 0;
+        font-size: 14px;
+      }
+      @media (max-width: 600px) {
+        .container {
+          margin: 10px;
+          padding: 15px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Rural India Nutrition Explorer</h1>
+      <div id="root"></div>
+    </div>
+
+    <script>
+      const h = React.createElement;
+      const { useState, useEffect, useRef } = React;
+
+      function formatToCrores(num) {
+        return (num / 10000000).toFixed(2) + " Cr";
+      }
+
+      function App() {
+        const [states, setStates] = useState([]);
+        const [selected, setSelected] = useState("");
+        const [loading, setLoading] = useState(true);
+        const [subsidy, setSubsidy] = useState(50);
+        const chartRef = useRef(null);
+        let chartInstance = useRef(null);
+
+        useEffect(() => {
+          fetch("/api/states")
+            .then((res) => res.json())
+            .then((data) => {
+              setStates(data);
+              setLoading(false);
+            });
+        }, []);
+
+        const current = states.find((s) => s.state === selected);
+
+        useEffect(() => {
+          if (current && chartRef.current) {
+            if (chartInstance.current) {
+              chartInstance.current.destroy();
+            }
+
+            const nutrients = current.lackingNutrients || [];
+            const before = nutrients.map(n => current.nutrientFulfillment?.[n]?.before || 0);
+            const after = nutrients.map(n => current.nutrientFulfillment?.[n]?.after || 0);
+            const whoRecommended = nutrients.map(() => 100);
+
+            chartInstance.current = new Chart(chartRef.current, {
+              type: 'bar',
+              data: {
+                labels: nutrients,
+                datasets: [
+                  {
+                    label: 'Before (Staple Foods)',
+                    data: before,
+                    backgroundColor: 'rgba(255, 99, 132, 0.6)'
+                  },
+                  {
+                    label: 'After (With New Foods)',
+                    data: after,
+                    backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                  },
+                  {
+                    label: 'WHO Recommended',
+                    data: whoRecommended,
+                    type: 'line',
+                    borderColor: 'rgba(255, 206, 86, 1)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.2,
+                    pointRadius: 4,
+                    pointBackgroundColor: 'rgba(255, 206, 86, 1)'
+                  }
+                ]
+              },
+              options: {
+                responsive: true,
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    max: 110,
+                    title: { display: true, text: "Fulfillment (%)" }
+                  }
+                },
+                plugins: {
+                  legend: { position: "bottom" }
+                }
+              }
+            });
+          }
+        }, [current]);
+
+        return h("div", null,
+          loading
+            ? h("div", { className: "loading" }, "Loading data...")
+            : h("select", { value: selected, onChange: e => setSelected(e.target.value) },
+                h("option", { value: "" }, "Select a state"),
+                ...states.map(s => h("option", { key: s.state, value: s.state }, s.state))
+              ),
+          current && h("div", { className: "card" },
+            h("h2", null, `${current.state} (Population: ${(current.population / 10000000).toFixed(2)} Cr)`),
+
+            h("h3", null, "Staple Foods"),
+            current.stapleFoods.map(f => h("span", { className: "pill", key: f }, f)),
+
+            h("h3", null, "Average Monthly Cost"),
+            h("p", null, "₹" + (current.avgMonthlyFoodCostINR ?? 0)),
+
+            h("h3", null, "Lacking Nutrients"),
+            current.lackingNutrients.map(n => h("span", { className: "pill", key: n }, n)),
+
+            h("h3", null, "Cost to Fulfill Nutrients"),
+            h("p", null, "₹" + (current.costToFulfillNutrientsINR ?? 0)),
+
+            h("h3", null, "Suggested New Foods"),
+            h("ul", null, current.suggestedNewFoods.map((item, idx) =>
+              h("li", { key: idx }, `${item.name} - ${item.reason} (₹${item.incrementalCostINR})`)
+            )),
+
+            h("canvas", { ref: chartRef, id: "nutrientChart" }),
+
+            h("div", { className: "slider-container" },
+              h("label", { className: "slider-label" }, `Subsidy: ${subsidy}%`),
+              h("input", {
+                type: "range",
+                min: 0,
+                max: 100,
+                value: subsidy,
+                className: "slider",
+                onChange: (e) => setSubsidy(parseFloat(e.target.value))
+              })
+            ),
+
+            h("div", { className: "policy-summary" },
+              (() => {
+                const totalCost = (current.population || 0) * (current.costToFulfillNutrientsINR || 0);
+                const govBudget = totalCost * ((subsidy || 0) / 100);
+                const perPersonAfterSubsidy = (totalCost - govBudget) / (current.population || 1);
+                const adjustedAvgMonthly =
+                  (current.avgMonthlyFoodCostINR || 0) + perPersonAfterSubsidy;
+
+                return `
+                  Total Cost: ₹${formatToCrores(totalCost)} | 
+                  Govt Budget: ₹${formatToCrores(govBudget)} | 
+                  Average Monthly (incl. plan after subsidy): ₹${adjustedAvgMonthly.toFixed(2)}
+                `;
+              })()
+            )
+          )
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+    </script>
+  </body>
+</html>
